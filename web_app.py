@@ -10,9 +10,9 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 # --- 1. PAGE CONFIGURATION ---
-st.set_page_config(page_title="InsightAI Dashboard", page_icon="🟣", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="InsightAI Dashboard", page_icon="🟣", layout="wide")
 
-# --- 2. CUSTOM CSS (To match the exact Image UI) ---
+# --- 2. CUSTOM CSS (Sidebar completely removed) ---
 st.markdown("""
     <style>
     .main {background-color: #fafbfd;}
@@ -27,14 +27,12 @@ st.markdown("""
     .pos-text {color: #4CAF50;}
     .neg-text {color: #E53935;}
     .neu-text {color: #757575;}
-    div[data-testid="stSidebar"] {background-color: #ffffff; border-right: 1px solid #f0f0f0;}
     </style>
 """, unsafe_allow_html=True)
 
 # --- 3. LOAD AI MODEL ---
 @st.cache_resource
 def load_model():
-    # If model is missing in local, it will show an error, but works perfect on cloud.
     try:
         model = joblib.load('sentiment_model.pkl')
         vectorizer = joblib.load('vectorizer.pkl')
@@ -56,7 +54,7 @@ def translate_to_english(text):
     except:
         return text
 
-# --- 5. INITIALIZE HISTORY (With dummy data to make charts look good immediately) ---
+# --- 5. INITIALIZE HISTORY ---
 if 'history' not in st.session_state:
     base_date = datetime.now()
     st.session_state.history = [
@@ -66,13 +64,6 @@ if 'history' not in st.session_state:
         {"Text": "I absolutely love this! Highly recommended to everyone.", "Sentiment": "Positive", "Confidence": 95.0, "Pos": 95, "Neg": 2, "Neu": 3, "Date": (base_date - timedelta(days=3)).strftime("%b %d, %Y")},
     ]
 
-# --- SIDEBAR (To match image left panel) ---
-with st.sidebar:
-    st.title("🟣 InsightAI")
-    st.radio("", ["🏠 Dashboard", "📈 Analytics", "📄 Reports", "🗄️ Data Sources", "🔔 Alerts", "⚙️ Settings"])
-    st.markdown("<br><br><br><br><br><br><br><br>", unsafe_allow_html=True)
-    st.write("👤 **Dhruv Pal**\ndhruv.pal@example.com")
-
 # --- MAIN DASHBOARD HEADER ---
 col_head1, col_head2 = st.columns([3, 1])
 with col_head1:
@@ -81,10 +72,10 @@ with col_head1:
 with col_head2:
     st.button(f"📅 Last 7 Days: {datetime.now().strftime('%b %d, %Y')}")
 
-# INPUT SECTION (Dynamic Input)
+# INPUT SECTION
 review_text = st.text_input("", placeholder="Paste customer review here to analyze instantly...")
 
-# DEFAULT VALUES (If no input is given, show latest history data)
+# DEFAULT VALUES
 latest_data = st.session_state.history[-1]
 pos_score = latest_data["Pos"]
 neg_score = latest_data["Neg"]
@@ -101,12 +92,11 @@ if review_text and model:
     
     pos_score = round(probs[1] * 100, 1)
     neg_score = round(probs[0] * 100, 1)
-    neu_score = round(max(0, 100 - (pos_score + neg_score)), 1) # Fallback logic
+    neu_score = round(max(0, 100 - (pos_score + neg_score)), 1)
     conf_score = round(max(pos_score, neg_score), 1)
     pred_sentiment = pred
     analyzed_text = eng_text
 
-    # Append to history
     st.session_state.history.append({
         "Text": review_text[:60] + "...",
         "Sentiment": pred_sentiment,
@@ -184,5 +174,5 @@ with col4:
 
 # --- ROW 3: RECENT ANALYSES TABLE ---
 st.markdown("**Recent Analyses**<br><span style='color:gray; font-size:12px;'>Latest sentiment analysis results</span>", unsafe_allow_html=True)
-df_display = pd.DataFrame(st.session_state.history)[::-1] # Reverse to show latest first
+df_display = pd.DataFrame(st.session_state.history)[::-1]
 st.dataframe(df_display[["Text", "Sentiment", "Confidence", "Date"]], use_container_width=True, hide_index=True)
