@@ -7,26 +7,25 @@ import json
 import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # --- 1. PAGE CONFIGURATION ---
 st.set_page_config(page_title="InsightAI Dashboard", page_icon="🟣", layout="wide")
 
-# --- 2. CUSTOM CSS (Sidebar completely removed) ---
+# --- 2. CUSTOM CSS (Adapted for Dark/Light Mode) ---
 st.markdown("""
     <style>
-    .main {background-color: #fafbfd;}
     .card {
-        background-color: white;
+        background-color: rgba(128, 128, 128, 0.1);
         border-radius: 15px;
         padding: 20px;
-        box-shadow: 0px 4px 10px rgba(0,0,0,0.03);
-        border: 1px solid #f0f0f0;
+        box-shadow: 0px 4px 10px rgba(0,0,0,0.05);
+        border: 1px solid rgba(128, 128, 128, 0.2);
     }
-    .metric-value {font-size: 28px; font-weight: bold; margin-top: 5px; color: #333;}
+    .metric-value {font-size: 28px; font-weight: bold; margin-top: 5px; color: inherit;}
     .pos-text {color: #4CAF50;}
     .neg-text {color: #E53935;}
-    .neu-text {color: #757575;}
+    .neu-text {color: #FF9800;}
     </style>
 """, unsafe_allow_html=True)
 
@@ -54,15 +53,9 @@ def translate_to_english(text):
     except:
         return text
 
-# --- 5. INITIALIZE HISTORY ---
+# --- 5. INITIALIZE HISTORY (EMPTY/CLEAN STATE) ---
 if 'history' not in st.session_state:
-    base_date = datetime.now()
-    st.session_state.history = [
-        {"Text": "The customer service was excellent and the product quality is top notch.", "Sentiment": "Positive", "Confidence": 92.0, "Pos": 92, "Neg": 5, "Neu": 3, "Date": (base_date - timedelta(days=6)).strftime("%b %d, %Y")},
-        {"Text": "Pathetic experience, delivery was late and item is broken.", "Sentiment": "Negative", "Confidence": 88.0, "Pos": 10, "Neg": 88, "Neu": 2, "Date": (base_date - timedelta(days=5)).strftime("%b %d, %Y")},
-        {"Text": "It's okay, nothing too special but does the job.", "Sentiment": "Neutral", "Confidence": 65.0, "Pos": 20, "Neg": 15, "Neu": 65, "Date": (base_date - timedelta(days=4)).strftime("%b %d, %Y")},
-        {"Text": "I absolutely love this! Highly recommended to everyone.", "Sentiment": "Positive", "Confidence": 95.0, "Pos": 95, "Neg": 2, "Neu": 3, "Date": (base_date - timedelta(days=3)).strftime("%b %d, %Y")},
-    ]
+    st.session_state.history = []
 
 # --- MAIN DASHBOARD HEADER ---
 col_head1, col_head2 = st.columns([3, 1])
@@ -75,35 +68,42 @@ with col_head2:
 # INPUT SECTION
 review_text = st.text_input("", placeholder="Paste customer review here to analyze instantly...")
 
-# DEFAULT VALUES
-latest_data = st.session_state.history[-1]
-pos_score = latest_data["Pos"]
-neg_score = latest_data["Neg"]
-neu_score = latest_data["Neu"]
-conf_score = latest_data["Confidence"]
-pred_sentiment = latest_data["Sentiment"]
-analyzed_text = latest_data["Text"]
+# DEFAULT VALUES (Set to 0 when empty)
+pos_score, neg_score, neu_score, conf_score = 0, 0, 0, 0
+pred_sentiment = "Neutral"
+analyzed_text = ""
 
+# PROCESS INPUT
 if review_text and model:
-    eng_text = translate_to_english(review_text)
-    vec = vectorizer.transform([eng_text])
-    pred = model.predict(vec)[0].capitalize()
-    probs = model.predict_proba(vec)[0]
-    
-    pos_score = round(probs[1] * 100, 1)
-    neg_score = round(probs[0] * 100, 1)
-    neu_score = round(max(0, 100 - (pos_score + neg_score)), 1)
-    conf_score = round(max(pos_score, neg_score), 1)
-    pred_sentiment = pred
-    analyzed_text = eng_text
+    with st.spinner("Analyzing data..."):
+        eng_text = translate_to_english(review_text)
+        vec = vectorizer.transform([eng_text])
+        pred = model.predict(vec)[0].capitalize()
+        probs = model.predict_proba(vec)[0]
+        
+        pos_score = round(probs[1] * 100, 1)
+        neg_score = round(probs[0] * 100, 1)
+        neu_score = round(max(0, 100 - (pos_score + neg_score)), 1)
+        conf_score = round(max(pos_score, neg_score), 1)
+        pred_sentiment = pred
+        analyzed_text = eng_text
 
-    st.session_state.history.append({
-        "Text": review_text[:60] + "...",
-        "Sentiment": pred_sentiment,
-        "Confidence": conf_score,
-        "Pos": pos_score, "Neg": neg_score, "Neu": neu_score,
-        "Date": datetime.now().strftime("%b %d, %Y %I:%M %p")
-    })
+        st.session_state.history.append({
+            "Text": review_text[:60] + "...",
+            "Sentiment": pred_sentiment,
+            "Confidence": conf_score,
+            "Pos": pos_score, "Neg": neg_score, "Neu": neu_score,
+            "Date": datetime.now().strftime("%b %d, %Y %I:%M %p")
+        })
+elif len(st.session_state.history) > 0:
+    # If text is cleared but history exists, show the last analysis
+    latest_data = st.session_state.history[-1]
+    pos_score = latest_data["Pos"]
+    neg_score = latest_data["Neg"]
+    neu_score = latest_data["Neu"]
+    conf_score = latest_data["Confidence"]
+    pred_sentiment = latest_data["Sentiment"]
+    analyzed_text = st.session_state.history[-1].get("Original_Text", "")
 
 # --- ROW 1: CARDS & GAUGE ---
 col1, col2 = st.columns([1.5, 1])
@@ -129,19 +129,24 @@ with col1:
 
 with col2:
     st.markdown("**Confidence Score**<br><span style='color:gray; font-size:12px;'>Overall analysis confidence</span>", unsafe_allow_html=True)
-    gauge_color = "#4CAF50" if pred_sentiment == "Positive" else "#E53935" if pred_sentiment == "Negative" else "#757575"
+    gauge_color = "#4CAF50" if pred_sentiment == "Positive" else "#E53935" if pred_sentiment == "Negative" else "#FF9800"
+    
+    # If no data, show gray empty gauge
+    if conf_score == 0:
+        gauge_color = "rgba(128,128,128,0.2)"
+        
     fig_gauge = go.Figure(go.Indicator(
         mode = "gauge+number",
         value = conf_score,
-        number = {'suffix': "%", 'font': {'size': 35, 'color': '#333'}},
+        number = {'suffix': "%", 'font': {'size': 35}},
         gauge = {
             'axis': {'range': [0, 100], 'visible': False},
             'bar': {'color': gauge_color},
-            'bgcolor': "#f0f0f0",
+            'bgcolor': "rgba(128,128,128,0.1)",
             'borderwidth': 0,
         }
     ))
-    fig_gauge.update_layout(height=180, margin=dict(l=20, r=20, t=20, b=0), paper_bgcolor="rgba(0,0,0,0)")
+    fig_gauge.update_layout(height=180, margin=dict(l=20, r=20, t=20, b=0), paper_bgcolor="rgba(0,0,0,0)", font={'color': 'gray'})
     st.plotly_chart(fig_gauge, use_container_width=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
@@ -151,28 +156,38 @@ col3, col4 = st.columns([1.5, 1])
 
 with col3:
     st.markdown("**Sentiment Over Time**<br><span style='color:gray; font-size:12px;'>Sentiment trend analysis</span>", unsafe_allow_html=True)
-    df_hist = pd.DataFrame(st.session_state.history)
-    fig_line = px.line(df_hist, x="Date", y=["Pos", "Neg", "Neu"], markers=True, 
-                       color_discrete_map={"Pos": "#4CAF50", "Neg": "#E53935", "Neu": "#B0BEC5"})
-    fig_line.update_layout(
-        height=280, margin=dict(l=0, r=0, t=20, b=0), 
-        legend_title_text='', paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor="#f0f0f0")
-    )
-    st.plotly_chart(fig_line, use_container_width=True)
+    if len(st.session_state.history) > 0:
+        df_hist = pd.DataFrame(st.session_state.history)
+        fig_line = px.line(df_hist, x="Date", y=["Pos", "Neg", "Neu"], markers=True, 
+                           color_discrete_map={"Pos": "#4CAF50", "Neg": "#E53935", "Neu": "#FF9800"})
+        fig_line.update_layout(
+            height=280, margin=dict(l=0, r=0, t=20, b=0), 
+            legend_title_text='', paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor="rgba(128,128,128,0.2)")
+        )
+        st.plotly_chart(fig_line, use_container_width=True)
+    else:
+        st.info("📉 No data available. Analyze a review to see the trend line.")
 
 with col4:
     st.markdown("**Word Cloud**<br><span style='color:gray; font-size:12px;'>Most frequent words in analyzed text</span>", unsafe_allow_html=True)
-    try:
-        wc = WordCloud(width=400, height=250, background_color='white', colormap='coolwarm', max_words=50).generate(analyzed_text)
-        fig_wc, ax = plt.subplots(figsize=(4, 2.5))
-        ax.imshow(wc, interpolation='bilinear')
-        ax.axis("off")
-        st.pyplot(fig_wc)
-    except:
-        st.info("Please enter a longer review to generate a word cloud.")
+    if analyzed_text:
+        try:
+            wc = WordCloud(width=400, height=250, background_color='black', colormap='coolwarm', max_words=50).generate(analyzed_text)
+            fig_wc, ax = plt.subplots(figsize=(4, 2.5))
+            fig_wc.patch.set_facecolor('none') # Transparent background for dark mode
+            ax.imshow(wc, interpolation='bilinear')
+            ax.axis("off")
+            st.pyplot(fig_wc)
+        except:
+            st.warning("Not enough words to generate a cloud.")
+    else:
+        st.info("☁️ Awaiting input to generate Word Cloud.")
 
 # --- ROW 3: RECENT ANALYSES TABLE ---
 st.markdown("**Recent Analyses**<br><span style='color:gray; font-size:12px;'>Latest sentiment analysis results</span>", unsafe_allow_html=True)
-df_display = pd.DataFrame(st.session_state.history)[::-1]
-st.dataframe(df_display[["Text", "Sentiment", "Confidence", "Date"]], use_container_width=True, hide_index=True)
+if len(st.session_state.history) > 0:
+    df_display = pd.DataFrame(st.session_state.history)[::-1]
+    st.dataframe(df_display[["Text", "Sentiment", "Confidence", "Date"]], use_container_width=True, hide_index=True)
+else:
+    st.write("No recent analyses found.")
