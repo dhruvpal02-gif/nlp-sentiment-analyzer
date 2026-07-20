@@ -4,3 +4,4 @@ joblib
 wordcloud
 matplotlib
 pandas
+plotly
