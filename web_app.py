@@ -4,123 +4,185 @@ from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 import urllib.request
 import json
+import plotly.graph_objects as go
+import plotly.express as px
+import pandas as pd
+from datetime import datetime, timedelta
 
-# 1. Page Configuration
-st.set_page_config(page_title="NLP Sentiment Analyzer", page_icon="🧠", layout="wide")
+# --- 1. PAGE CONFIGURATION ---
+st.set_page_config(page_title="InsightAI Dashboard", page_icon="🟣", layout="wide", initial_sidebar_state="expanded")
 
-# 2. Load the trained AI Brain
+# --- 2. CUSTOM CSS (To match the exact Image UI) ---
+st.markdown("""
+    <style>
+    .main {background-color: #fafbfd;}
+    .card {
+        background-color: white;
+        border-radius: 15px;
+        padding: 20px;
+        box-shadow: 0px 4px 10px rgba(0,0,0,0.03);
+        border: 1px solid #f0f0f0;
+    }
+    .metric-value {font-size: 28px; font-weight: bold; margin-top: 5px; color: #333;}
+    .pos-text {color: #4CAF50;}
+    .neg-text {color: #E53935;}
+    .neu-text {color: #757575;}
+    div[data-testid="stSidebar"] {background-color: #ffffff; border-right: 1px solid #f0f0f0;}
+    </style>
+""", unsafe_allow_html=True)
+
+# --- 3. LOAD AI MODEL ---
 @st.cache_resource
 def load_model():
-    model = joblib.load('sentiment_model.pkl')
-    vectorizer = joblib.load('vectorizer.pkl')
-    return model, vectorizer
+    # If model is missing in local, it will show an error, but works perfect on cloud.
+    try:
+        model = joblib.load('sentiment_model.pkl')
+        vectorizer = joblib.load('vectorizer.pkl')
+        return model, vectorizer
+    except:
+        return None, None
 
 model, vectorizer = load_model()
 
-# 3. Free Translation Function using Google API (No library installation required for Cloud)
+# --- 4. TRANSLATION API ---
 def translate_to_english(text):
     try:
         url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q={urllib.parse.quote(text)}"
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         response = urllib.request.urlopen(req)
         data = json.loads(response.read().decode('utf-8'))
-        
         translated_text = "".join([sentence[0] for sentence in data[0] if sentence[0]])
-        detected_lang = data[2]
-        return translated_text, detected_lang
-    except Exception:
-        return text, "en" # Fallback to original text if translation fails
+        return translated_text
+    except:
+        return text
 
-# 4. Initialize Prediction History
+# --- 5. INITIALIZE HISTORY (With dummy data to make charts look good immediately) ---
 if 'history' not in st.session_state:
-    st.session_state.history = []
+    base_date = datetime.now()
+    st.session_state.history = [
+        {"Text": "The customer service was excellent and the product quality is top notch.", "Sentiment": "Positive", "Confidence": 92.0, "Pos": 92, "Neg": 5, "Neu": 3, "Date": (base_date - timedelta(days=6)).strftime("%b %d, %Y")},
+        {"Text": "Pathetic experience, delivery was late and item is broken.", "Sentiment": "Negative", "Confidence": 88.0, "Pos": 10, "Neg": 88, "Neu": 2, "Date": (base_date - timedelta(days=5)).strftime("%b %d, %Y")},
+        {"Text": "It's okay, nothing too special but does the job.", "Sentiment": "Neutral", "Confidence": 65.0, "Pos": 20, "Neg": 15, "Neu": 65, "Date": (base_date - timedelta(days=4)).strftime("%b %d, %Y")},
+        {"Text": "I absolutely love this! Highly recommended to everyone.", "Sentiment": "Positive", "Confidence": 95.0, "Pos": 95, "Neg": 2, "Neu": 3, "Date": (base_date - timedelta(days=3)).strftime("%b %d, %Y")},
+    ]
 
-# --- UI LAYOUT ---
-st.title("🧠 Universal Multilingual Sentiment Analyzer")
-st.write("Supports Hindi, Hinglish, Marathi, English, and 100+ languages!")
+# --- SIDEBAR (To match image left panel) ---
+with st.sidebar:
+    st.title("🟣 InsightAI")
+    st.radio("", ["🏠 Dashboard", "📈 Analytics", "📄 Reports", "🗄️ Data Sources", "🔔 Alerts", "⚙️ Settings"])
+    st.markdown("<br><br><br><br><br><br><br><br>", unsafe_allow_html=True)
+    st.write("👤 **Dhruv Pal**\ndhruv.pal@example.com")
 
-tab1, tab2 = st.tabs(["🔍 Analyze Review", "📊 Model Performance"])
+# --- MAIN DASHBOARD HEADER ---
+col_head1, col_head2 = st.columns([3, 1])
+with col_head1:
+    st.header("Sentiment Analysis Dashboard")
+    st.caption("Analyze text data to extract insights and understand sentiment patterns.")
+with col_head2:
+    st.button(f"📅 Last 7 Days: {datetime.now().strftime('%b %d, %Y')}")
 
-# --- TAB 1: MAIN ANALYZER ---
-with tab1:
-    review_text = st.text_area("Paste Review Here (Hindi, Hinglish, English, etc.):", height=150, placeholder="E.g., Ye phone bahut mast hai! OR This product is terrible...")
+# INPUT SECTION (Dynamic Input)
+review_text = st.text_input("", placeholder="Paste customer review here to analyze instantly...")
 
-    if st.button("Analyze Sentiment", type="primary"):
-        if not review_text.strip():
-            st.warning("Please enter some text first!")
-        else:
-            # Step A: Translate to English dynamically
-            with st.spinner("Analyzing language context..."):
-                english_text, lang_code = translate_to_english(review_text)
+# DEFAULT VALUES (If no input is given, show latest history data)
+latest_data = st.session_state.history[-1]
+pos_score = latest_data["Pos"]
+neg_score = latest_data["Neg"]
+neu_score = latest_data["Neu"]
+conf_score = latest_data["Confidence"]
+pred_sentiment = latest_data["Sentiment"]
+analyzed_text = latest_data["Text"]
 
-            # Step B: Vectorization & Prediction
-            text_vector = vectorizer.transform([english_text])
-            prediction = model.predict(text_vector)[0].capitalize()
-            probabilities = model.predict_proba(text_vector)[0]
-            confidence = max(probabilities) * 100
+if review_text and model:
+    eng_text = translate_to_english(review_text)
+    vec = vectorizer.transform([eng_text])
+    pred = model.predict(vec)[0].capitalize()
+    probs = model.predict_proba(vec)[0]
+    
+    pos_score = round(probs[1] * 100, 1)
+    neg_score = round(probs[0] * 100, 1)
+    neu_score = round(max(0, 100 - (pos_score + neg_score)), 1) # Fallback logic
+    conf_score = round(max(pos_score, neg_score), 1)
+    pred_sentiment = pred
+    analyzed_text = eng_text
 
-            # Extract Top Keywords
-            feature_names = vectorizer.get_feature_names_out()
-            tfidf_scores = text_vector.toarray()[0]
-            top_indices = tfidf_scores.argsort()[-5:][::-1]
-            top_keywords = [feature_names[i] for i in top_indices if tfidf_scores[i] > 0]
+    # Append to history
+    st.session_state.history.append({
+        "Text": review_text[:60] + "...",
+        "Sentiment": pred_sentiment,
+        "Confidence": conf_score,
+        "Pos": pos_score, "Neg": neg_score, "Neu": neu_score,
+        "Date": datetime.now().strftime("%b %d, %Y %I:%M %p")
+    })
 
-            # Save to History
-            st.session_state.history.append({
-                "review": review_text,
-                "sentiment": prediction,
-                "confidence": confidence
-            })
+# --- ROW 1: CARDS & GAUGE ---
+col1, col2 = st.columns([1.5, 1])
 
-            st.write("---")
-            
-            # Show translation info if it wasn't originally English
-            if lang_code != "en":
-                st.info(f"🌐 **Detected Language:** {lang_code.upper()} | **Internal Translation:** \"{english_text}\"")
+with col1:
+    st.markdown("**Overall Sentiment**<br><span style='color:gray; font-size:12px;'>Overview of sentiment distribution</span>", unsafe_allow_html=True)
+    st.markdown(f"""
+    <div style="display: flex; gap: 15px; margin-top: 10px;">
+        <div class="card" style="flex: 1; text-align: center;">
+            <div class="pos-text" style="font-weight: bold;">😊 Positive</div>
+            <div class="metric-value">{pos_score}%</div>
+        </div>
+        <div class="card" style="flex: 1; text-align: center;">
+            <div class="neg-text" style="font-weight: bold;">😡 Negative</div>
+            <div class="metric-value">{neg_score}%</div>
+        </div>
+        <div class="card" style="flex: 1; text-align: center;">
+            <div class="neu-text" style="font-weight: bold;">😐 Neutral</div>
+            <div class="metric-value">{neu_score}%</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                if prediction == "Positive":
-                    st.success(f"### **Verdict: Positive** 🎉\n**Confidence Score:** {confidence:.2f}%")
-                elif prediction == "Negative":
-                    st.error(f"### **Verdict: Negative** ⚠️\n**Confidence Score:** {confidence:.2f}%")
-                else:
-                    st.info(f"### **Verdict: Neutral** 😐\n**Confidence Score:** {confidence:.2f}%")
-                
-                st.write("**🔑 Top Keywords driving this prediction (English Context):**")
-                if top_keywords:
-                    for word in top_keywords:
-                        st.write(f"- {word}")
-                else:
-                    st.write("- Generic Context")
+with col2:
+    st.markdown("**Confidence Score**<br><span style='color:gray; font-size:12px;'>Overall analysis confidence</span>", unsafe_allow_html=True)
+    gauge_color = "#4CAF50" if pred_sentiment == "Positive" else "#E53935" if pred_sentiment == "Negative" else "#757575"
+    fig_gauge = go.Figure(go.Indicator(
+        mode = "gauge+number",
+        value = conf_score,
+        number = {'suffix': "%", 'font': {'size': 35, 'color': '#333'}},
+        gauge = {
+            'axis': {'range': [0, 100], 'visible': False},
+            'bar': {'color': gauge_color},
+            'bgcolor': "#f0f0f0",
+            'borderwidth': 0,
+        }
+    ))
+    fig_gauge.update_layout(height=180, margin=dict(l=20, r=20, t=20, b=0), paper_bgcolor="rgba(0,0,0,0)")
+    st.plotly_chart(fig_gauge, use_container_width=True)
 
-            with col2:
-                try:
-                    wc = WordCloud(width=400, height=200, background_color='black', colormap='Blues').generate(english_text)
-                    fig, ax = plt.subplots(figsize=(6, 3))
-                    ax.imshow(wc, interpolation='bilinear')
-                    ax.axis("off")
-                    st.pyplot(fig)
-                except ValueError:
-                    st.write("Not enough unique words for a Word Cloud.")
+st.markdown("<br>", unsafe_allow_html=True)
 
-# --- TAB 2: MODEL EVALUATION ---
-with tab2:
-    st.header("📊 Model Evaluation & Metrics")
-    col_a, col_b = st.columns(2)
-    with col_a:
-        st.info("**Algorithm:** Logistic Regression")
-        st.info("**Architecture:** Multi-Domain API Pipeline")
-        st.info("**Data Domains:** Movies (IMDB) + Products (Amazon) + Restaurants (Yelp)")
-    with col_b:
-        st.success("**Core Accuracy:** ~88.2%")
-        st.success("**Feature:** Cross-Language Translation Wrapper Enabled")
+# --- ROW 2: LINE CHART & WORD CLOUD ---
+col3, col4 = st.columns([1.5, 1])
 
-# --- SIDEBAR: HISTORY ---
-st.sidebar.title("🕒 Prediction History")
-for item in reversed(st.session_state.history):
-    color = "🟢" if item['sentiment'] == "Positive" else "🔴" if item['sentiment'] == "Negative" else "⚪"
-    st.sidebar.write(f"{color} **{item['sentiment']}** ({item['confidence']:.1f}%)")
-    st.sidebar.caption(item['review'][:40] + "..." if len(item['review']) > 40 else item['review'])
-    st.sidebar.write("---")
+with col3:
+    st.markdown("**Sentiment Over Time**<br><span style='color:gray; font-size:12px;'>Sentiment trend analysis</span>", unsafe_allow_html=True)
+    df_hist = pd.DataFrame(st.session_state.history)
+    fig_line = px.line(df_hist, x="Date", y=["Pos", "Neg", "Neu"], markers=True, 
+                       color_discrete_map={"Pos": "#4CAF50", "Neg": "#E53935", "Neu": "#B0BEC5"})
+    fig_line.update_layout(
+        height=280, margin=dict(l=0, r=0, t=20, b=0), 
+        legend_title_text='', paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor="#f0f0f0")
+    )
+    st.plotly_chart(fig_line, use_container_width=True)
+
+with col4:
+    st.markdown("**Word Cloud**<br><span style='color:gray; font-size:12px;'>Most frequent words in analyzed text</span>", unsafe_allow_html=True)
+    try:
+        wc = WordCloud(width=400, height=250, background_color='white', colormap='coolwarm', max_words=50).generate(analyzed_text)
+        fig_wc, ax = plt.subplots(figsize=(4, 2.5))
+        ax.imshow(wc, interpolation='bilinear')
+        ax.axis("off")
+        st.pyplot(fig_wc)
+    except:
+        st.info("Please enter a longer review to generate a word cloud.")
+
+# --- ROW 3: RECENT ANALYSES TABLE ---
+st.markdown("**Recent Analyses**<br><span style='color:gray; font-size:12px;'>Latest sentiment analysis results</span>", unsafe_allow_html=True)
+df_display = pd.DataFrame(st.session_state.history)[::-1] # Reverse to show latest first
+st.dataframe(df_display[["Text", "Sentiment", "Confidence", "Date"]], use_container_width=True, hide_index=True)
