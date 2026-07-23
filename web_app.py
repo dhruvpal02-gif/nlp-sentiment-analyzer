@@ -77,6 +77,12 @@ analyzed_text = ""
 if review_text and model:
     with st.spinner("Analyzing data..."):
         eng_text = translate_to_english(review_text)
+        
+        # --- NAYA AUTO-CLEANER ---
+        eng_text = eng_text.lower()
+        eng_text = eng_text.replace("alot", "a lot").replace("awsome", "awesome").replace("plz", "please")
+        # -------------------------
+
         vec = vectorizer.transform([eng_text])
         pred = model.predict(vec)[0].capitalize()
         probs = model.predict_proba(vec)[0]
