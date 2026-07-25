@@ -40,7 +40,7 @@ st.markdown("""
 # ==========================================
 @st.cache_resource
 def load_model():
-    # ⚠️ YAHAN APNA HUGGING FACE USERNAME DAALEIN (e.g., "dhruvpal02/ultimate-sentiment-ai")
+    # Model explicitly pointed to your Hugging Face repository
     MODEL_NAME = "dhruvpal02/ultimate-sentiment-ai" 
     return pipeline("text-classification", model=MODEL_NAME, tokenizer=MODEL_NAME)
 
@@ -64,8 +64,19 @@ if st.button("🔮 Analyze Sentiment"):
     else:
         with st.spinner("🧠 Analyzing deep semantics..."):
             result = analyzer(user_text)[0]
-            label = result['label']
+            raw_label = result['label']
             score = result['score'] * 100  # Convert to percentage
+            
+            # 💡 THE FIX: Translating AI's "LABEL_X" to English
+            label_map = {
+                "LABEL_0": "Negative", 
+                "LABEL_1": "Neutral", 
+                "LABEL_2": "Positive", 
+                "LABEL_3": "Mixed"
+            }
+            
+            # Translate label if it's in LABEL_ format
+            final_label = label_map.get(raw_label, raw_label)
             
         st.markdown("---")
         st.markdown("### 📊 AI Prediction Result")
@@ -74,14 +85,16 @@ if st.button("🔮 Analyze Sentiment"):
         col1, col2 = st.columns(2)
         
         with col1:
-            if label == "Positive":
+            if final_label == "Positive":
                 st.success("### 🥳 Positive")
-            elif label == "Negative":
+            elif final_label == "Negative":
                 st.error("### 😡 Negative")
-            elif label == "Neutral":
+            elif final_label == "Neutral":
                 st.info("### 😐 Neutral / Factual")
-            elif label == "Mixed":
+            elif final_label == "Mixed":
                 st.warning("### 🤔 Mixed Sentiment")
+            else:
+                st.write(f"### {final_label}") # Fallback safety
                 
         with col2:
             st.metric(label="AI Confidence Score", value=f"{score:.2f}%")
