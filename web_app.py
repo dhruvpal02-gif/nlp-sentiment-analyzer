@@ -1,93 +1,92 @@
 import streamlit as st
 from transformers import pipeline
-from deep_translator import GoogleTranslator
 
-# 1. Page Configuration
-st.set_page_config(page_title="Ultimate 4-Class Sentiment AI", page_icon="🧠", layout="centered")
+# ==========================================
+# 1. PAGE CONFIGURATION & UI STYLING
+# ==========================================
+st.set_page_config(page_title="Ultimate Sentiment AI", page_icon="🧠", layout="centered")
 
-# 2. Model Loading (Pointing to your Hugging Face model)
+# Custom CSS for modern look
+st.markdown("""
+    <style>
+    .stTextArea textarea {
+        border-radius: 12px;
+        border: 1.5px solid #ced4da;
+        font-size: 16px;
+    }
+    .stButton>button {
+        border-radius: 25px;
+        width: 100%;
+        background-color: #007BFF;
+        color: white;
+        font-weight: bold;
+        font-size: 18px;
+        transition: 0.3s;
+    }
+    .stButton>button:hover {
+        background-color: #0056b3;
+    }
+    .footer {
+        text-align: center;
+        margin-top: 80px;
+        color: #6c757d;
+        font-family: monospace;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# ==========================================
+# 2. LOAD AI MODEL (WITH CACHING FOR SPEED)
+# ==========================================
 @st.cache_resource
 def load_model():
-    model_path = "dhruvpal02/ultimate-sentiment-ai"
-    return pipeline("text-classification", model=model_path, tokenizer=model_path)
+    # ⚠️ YAHAN APNA HUGGING FACE USERNAME DAALEIN (e.g., "dhruvpal02/ultimate-sentiment-ai")
+    MODEL_NAME = "aapka_username/yahan_model_ka_naam_daalein" 
+    return pipeline("text-classification", model=MODEL_NAME, tokenizer=MODEL_NAME)
 
-st.title("🌍 Multilingual 4-Class Sentiment Analyzer")
-st.markdown("Test our upgraded AI that understands **Hindi, Marathi, Gujarati, English** & 100+ languages!")
+# ==========================================
+# 3. APP HEADER & USER INPUT
+# ==========================================
+st.title("🧠 Ultimate AI Sentiment Analyzer")
+st.markdown("Enter any review, comment, or paragraph, and my **Custom 4-Class Deep Learning Model** will analyze its true emotion!")
 
-# 3. Load the AI Brain
-with st.spinner("Waking up the Multilingual AI Brain... Please wait..."):
-    sentiment_ai = load_model()
+with st.spinner("Waking up the AI Brain... 🤖"):
+    analyzer = load_model()
 
-# 4. User Input Box
-user_input = st.text_area("Type your review here (in any language):", height=150, placeholder="Example: Product bohot achha hai, par customer service bekar hai.")
+user_text = st.text_area("✍️ Type your text here:", height=150, placeholder="Example: The camera quality is amazing, but the battery drains too fast...")
 
-# 5. Analyze Button
-if st.button("Analyze Sentiment 🚀"):
-    if user_input.strip() == "":
-        st.warning("Please enter some text to analyze!")
+# ==========================================
+# 4. PREDICTION LOGIC & RESULT DISPLAY
+# ==========================================
+if st.button("🔮 Analyze Sentiment"):
+    if user_text.strip() == "":
+        st.error("⚠️ Please enter some text first!")
     else:
-        with st.spinner("Translating & Analyzing..."):
-            
-            # --- NEW: Translation Pipeline ---
-            # Automatically detect language and translate to English
-            translated_text = GoogleTranslator(source='auto', target='en').translate(user_input)
-            
-            # Show the translation so users know it worked
-            if user_input.strip().lower() != translated_text.lower():
-                st.info(f"🌐 Translated to English: {translated_text}")
-            
-            # --- AI Prediction (Using the translated text) ---
-            result = sentiment_ai(translated_text)[0]
+        with st.spinner("🧠 Analyzing deep semantics..."):
+            result = analyzer(user_text)[0]
             label = result['label']
-            score = result['score']
+            score = result['score'] * 100  # Convert to percentage
             
-            text_lower = translated_text.lower()
-            
-            # --- THE HYBRID ENSEMBLE LOGIC ---
-            fatal_phrases = [
-                'ignored', 'does not turn on', "doesn't turn on", "doesn't even turn on", 
-                "won't turn on", 'worst', 'pathetic', 'waste of money', 'never buy',
-                'crashes', 'broken', 'defective', 'useless'
-            ]
-            mixed_phrases = ['but', 'however', 'although', 'though']
-            positive_words = ['great', 'wonderful', 'amazing', 'brilliant', 'good', 'beautiful', 'awesome', 'excellent']
-            
-            is_fatal = any(phrase in text_lower for phrase in fatal_phrases)
-            has_mixed_words = any(word in text_lower.split() for word in mixed_phrases)
-            has_positive_words = any(word in text_lower.split() for word in positive_words)
-            
-            # Logic overrides
-            if is_fatal and has_positive_words:
-                label = "LABEL_0_SARCASM" 
-            elif has_mixed_words and has_positive_words and label in ["LABEL_0", "LABEL_2"]:
-                label = "LABEL_3"
-            elif is_fatal:
-                label = "LABEL_0"
-            
-            # --- FINAL UI RENDERING ---
-            if label == "LABEL_0":
-                sentiment = "Negative 😠"
-                color = "red"
-            elif label == "LABEL_0_SARCASM":
-                sentiment = "Negative (Sarcasm Detected) 😒"
-                color = "darkred"
-            elif label == "LABEL_1":
-                sentiment = "True Neutral / Factual 😐"
-                color = "gray"
-            elif label == "LABEL_2":
-                sentiment = "Positive 🤩"
-                color = "green"
-            elif label == "LABEL_3":
-                sentiment = "Mixed / Contrastive 🤔"
-                color = "orange"
-            
-            # Display Results
-            st.markdown(f"### Result: <span style='color:{color};'>{sentiment}</span>", unsafe_allow_html=True)
-            
-            if label == "LABEL_0_SARCASM" or (has_mixed_words and result['label'] != "LABEL_3") or (is_fatal and result['label'] != "LABEL_0"):
-                st.info(f"AI Base Score: {score * 100:.2f}% | Adjusted by Hybrid Heuristic Pipeline ⚙️")
-            else:
-                st.info(f"AI Confidence Score: {score * 100:.2f}%")
-            
-st.markdown("---")
-st.caption("Built with ❤️ using Streamlit, Hugging Face & Deep Translator")
+        st.markdown("---")
+        st.markdown("### 📊 AI Prediction Result")
+        
+        # Displaying result in a clean 2-column layout
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if label == "Positive":
+                st.success("### 🥳 Positive")
+            elif label == "Negative":
+                st.error("### 😡 Negative")
+            elif label == "Neutral":
+                st.info("### 😐 Neutral / Factual")
+            elif label == "Mixed":
+                st.warning("### 🤔 Mixed Sentiment")
+                
+        with col2:
+            st.metric(label="AI Confidence Score", value=f"{score:.2f}%")
+
+# ==========================================
+# 5. FOOTER
+# ==========================================
+st.markdown('<div class="footer">Developed with ❤️ by Dhruv</div>', unsafe_allow_html=True)
