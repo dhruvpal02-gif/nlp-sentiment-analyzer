@@ -41,7 +41,7 @@ st.markdown("""
 @st.cache_resource
 def load_model():
     # ⚠️ YAHAN APNA HUGGING FACE USERNAME DAALEIN (e.g., "dhruvpal02/ultimate-sentiment-ai")
-    MODEL_NAME = "aapka_username/yahan_model_ka_naam_daalein" 
+    MODEL_NAME = "dhruvpal02/ultimate-sentiment-ai" 
     return pipeline("text-classification", model=MODEL_NAME, tokenizer=MODEL_NAME)
 
 # ==========================================
