@@ -7,7 +7,7 @@ st.set_page_config(page_title="Ultimate 4-Class Sentiment AI", page_icon="🧠",
 # 2. Model Loading (Pointing to the 4-class folder)
 @st.cache_resource
 def load_model():
-    model_path = "Aapka-HF-Username/ultimate-sentiment-ai"
+    model_path = "dhruvpal02/ultimate-sentiment-ai"
     return pipeline("text-classification", model=model_path, tokenizer=model_path)
 
 st.title("🧠 Ultimate 4-Class Sentiment Analyzer")
