@@ -42,14 +42,15 @@ if 'review_count' not in st.session_state:
     st.session_state.review_count = 0
 
 # ==========================================
-# 3. LOAD AI MODEL
+# 3. LOAD AI MODEL (The Super-Accurate RoBERTa)
 # ==========================================
 @st.cache_resource
 def load_model():
-    MODEL_NAME = "dhruvpal02/ultimate-sentiment-ai" 
+    # 💡 CHANGED: World's best open-source 3-class sentiment model
+    MODEL_NAME = "cardiffnlp/twitter-roberta-base-sentiment-latest" 
     return pipeline("text-classification", model=MODEL_NAME, tokenizer=MODEL_NAME, top_k=None)
 
-with st.spinner("Initializing Dashboard Engines..."):
+with st.spinner("Initializing Enterprise AI Engines..."):
     analyzer = load_model()
 
 # ==========================================
@@ -58,7 +59,7 @@ with st.spinner("Initializing Dashboard Engines..."):
 col_header1, col_header2 = st.columns([3, 1])
 with col_header1:
     st.markdown('<p class="dashboard-title">Sentiment Analysis Dashboard</p>', unsafe_allow_html=True)
-    st.markdown('<p class="dashboard-subtitle">Live Tracking: Analyze reviews and build real-time trend history.</p>', unsafe_allow_html=True)
+    st.markdown('<p class="dashboard-subtitle">Live Tracking: Powered by Enterprise RoBERTa AI Model.</p>', unsafe_allow_html=True)
 with col_header2:
     today_date = datetime.datetime.now().strftime("%b %d, %Y")
     st.markdown(f'<div class="date-badge">🗓️ Session Date: {today_date}</div>', unsafe_allow_html=True)
@@ -66,9 +67,8 @@ with col_header2:
 user_text = st.text_input("", placeholder="Paste customer review here and hit Enter...")
 
 # ==========================================
-# 5. DATA PROCESSING (Removing 'Mixed')
+# 5. DATA PROCESSING (Pure 3-Class Logic)
 # ==========================================
-# Default states for 3 Classes only
 scores = {"Positive": 0, "Negative": 0, "Neutral": 0}
 top_sentiment = "Awaiting Input"
 top_score = 0
@@ -96,28 +96,37 @@ if user_text.strip():
 
     # Run AI Prediction
     results = analyzer(english_text)[0]
-    label_mapping = {"LABEL_0": "Negative", "LABEL_1": "Neutral", "LABEL_2": "Positive", "LABEL_3": "Mixed"}
     
-    raw_scores = {"Positive": 0.0, "Negative": 0.0, "Neutral": 0.0}
+    # Robust mapping for the new model
+    label_mapping = {
+        "LABEL_0": "Negative", "negative": "Negative",
+        "LABEL_1": "Neutral",  "neutral": "Neutral",
+        "LABEL_2": "Positive", "positive": "Positive"
+    }
     
-    # Get scores only for the 3 main classes
     for res in results:
         mapped_name = label_mapping.get(res['label'], res['label'])
-        if mapped_name in raw_scores:
-            raw_scores[mapped_name] = res['score']
-            
-    # RE-NORMALIZE SCORES (Make sure the remaining 3 add up to exactly 100%)
-    total_valid_score = sum(raw_scores.values())
-    if total_valid_score > 0:
-        scores["Positive"] = round((raw_scores["Positive"] / total_valid_score) * 100)
-        scores["Negative"] = round((raw_scores["Negative"] / total_valid_score) * 100)
-        scores["Neutral"] = round((raw_scores["Neutral"] / total_valid_score) * 100)
+        if mapped_name in scores:
+            scores[mapped_name] = round(res['score'] * 100)
     
+    # 💡 NOISE FILTER: Agar koi score 5% se kam hai, usko 0 kardo for clean UI
+    for key in scores:
+        if scores[key] < 5:
+            scores[key] = 0
+            
     top_sentiment = max(scores, key=scores.get)
+    current_total = sum(scores.values())
+    
+    # Adjust remaining percentage to make it exactly 100%
+    if current_total > 0 and current_total < 100:
+        scores[top_sentiment] += (100 - current_total)
+    elif current_total > 100:
+        scores[top_sentiment] -= (current_total - 100)
+    
     top_score = scores[top_sentiment]
     gauge_color = "#28a745" if top_sentiment == "Positive" else "#dc3545" if top_sentiment == "Negative" else "#fd7e14"
 
-    # Save to Live History (Removed Mixed column)
+    # Save to Live History 
     if not st.session_state.history or st.session_state.history[-1]['Original Text'] != user_text:
         st.session_state.review_count += 1
         st.session_state.history.append({
@@ -130,7 +139,7 @@ if user_text.strip():
         })
 
 # ==========================================
-# 6. DASHBOARD UI (Now with 3 Cards)
+# 6. DASHBOARD UI (3 Cards)
 # ==========================================
 row1_col1, row1_col2 = st.columns([1.5, 1])
 
@@ -138,7 +147,6 @@ with row1_col1:
     st.markdown('<p class="section-title">Latest Review Sentiment</p>', unsafe_allow_html=True)
     st.markdown('<p class="section-subtitle">Real-time analysis of the current input</p>', unsafe_allow_html=True)
     
-    # Changed from 4 columns to 3
     c1, c2, c3 = st.columns(3)
     def draw_card(title, emoji, percentage, color):
         return f"""
