@@ -60,9 +60,8 @@ with col_header2:
     today_date = datetime.datetime.now().strftime("%b %d, %Y")
     st.markdown(f'<div class="date-badge">🗓️ Last 7 Days: {today_date}</div>', unsafe_allow_html=True)
 
-# 💡 FIX: Added a default Hindi sentence so dashboard is NEVER empty on load
-default_text = "यह प्रोडक्ट दिखने में बहुत अच्छा है, लेकिन इसकी बैटरी बहुत जल्दी खत्म हो जाती है।"
-user_text = st.text_input("", value=default_text, placeholder="Paste customer review here to analyze instantly...")
+# 💡 FIX: Default text removed. Box will be completely empty on load.
+user_text = st.text_input("", placeholder="Paste customer review here to analyze instantly...")
 
 # ==========================================
 # 4. DASHBOARD PROCESSING & UI 
@@ -74,7 +73,7 @@ if user_text:
     except:
         english_text = user_text
         
-    # 💡 FIX: Beautiful Translation Box (Shows only if text was translated)
+    # --- Translation Box ---
     if english_text.lower().strip() != user_text.lower().strip():
         st.markdown(f"""
         <div style="background-color: #2b2b36; border-left: 4px solid #007BFF; padding: 12px 20px; border-radius: 8px; margin-top: -15px; margin-bottom: 25px;">
@@ -105,7 +104,6 @@ if user_text:
         st.markdown('<p class="section-title">Overall Sentiment</p>', unsafe_allow_html=True)
         st.markdown('<p class="section-subtitle">Overview of sentiment distribution across 4 classes</p>', unsafe_allow_html=True)
         
-        # 💡 FIX: Inline CSS guarantees text visibility regardless of Dark Mode
         c1, c2, c3, c4 = st.columns(4)
         
         def draw_card(title, emoji, percentage, color):
