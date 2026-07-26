@@ -8,13 +8,13 @@ import datetime
 import random
 
 # ==========================================
-# 1. PAGE CONFIGURATION & CUSTOM CSS (Wide Layout)
+# 1. PAGE CONFIGURATION & CUSTOM CSS 
 # ==========================================
 st.set_page_config(page_title="InsightAI Dashboard", page_icon="🟣", layout="wide")
 
 st.markdown("""
     <style>
-    /* Input box styling to match the red glow/border */
+    /* Input box styling */
     .stTextInput input {
         border: 1px solid #ff4b4b !important;
         background-color: #1e1e24;
@@ -22,24 +22,8 @@ st.markdown("""
         border-radius: 8px;
         padding: 15px;
     }
-    /* White Metric Cards */
-    .metric-card {
-        background-color: #ffffff;
-        border-radius: 12px;
-        padding: 20px;
-        text-align: center;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-        margin-bottom: 20px;
-    }
-    .metric-card h4 { margin: 0; font-size: 16px; font-weight: bold; }
-    .metric-card h1 { margin: 10px 0 0 0; font-size: 32px; color: #111; font-weight: 900;}
     
-    /* specific text colors */
-    .text-pos { color: #28a745; }
-    .text-neg { color: #dc3545; }
-    .text-neu { color: #fd7e14; }
-    .text-mix { color: #6f42c1; }
-    
+    /* Texts and Headers */
     .dashboard-title { font-size: 2.5rem; font-weight: 700; margin-bottom: 0;}
     .dashboard-subtitle { color: #a0a0a5; font-size: 1.1rem; margin-bottom: 2rem;}
     .section-title { font-size: 1.2rem; font-weight: 600; margin-bottom: 5px;}
@@ -60,7 +44,6 @@ st.markdown("""
 @st.cache_resource
 def load_model():
     MODEL_NAME = "dhruvpal02/ultimate-sentiment-ai" 
-    # top_k=None forces the model to return percentages for ALL 4 classes
     return pipeline("text-classification", model=MODEL_NAME, tokenizer=MODEL_NAME, top_k=None)
 
 with st.spinner("Initializing Dashboard Engines..."):
@@ -77,23 +60,32 @@ with col_header2:
     today_date = datetime.datetime.now().strftime("%b %d, %Y")
     st.markdown(f'<div class="date-badge">🗓️ Last 7 Days: {today_date}</div>', unsafe_allow_html=True)
 
-# Input Box
-user_text = st.text_input("", placeholder="Paste customer review here to analyze instantly...")
+# 💡 FIX: Added a default Hindi sentence so dashboard is NEVER empty on load
+default_text = "यह प्रोडक्ट दिखने में बहुत अच्छा है, लेकिन इसकी बैटरी बहुत जल्दी खत्म हो जाती है।"
+user_text = st.text_input("", value=default_text, placeholder="Paste customer review here to analyze instantly...")
 
 # ==========================================
-# 4. DASHBOARD PROCESSING & UI (Only runs if text is entered)
+# 4. DASHBOARD PROCESSING & UI 
 # ==========================================
 if user_text:
-    # --- TRANSLATION & PREDICTION ---
+    # --- TRANSLATION ---
     try:
         english_text = GoogleTranslator(source='auto', target='en').translate(user_text)
     except:
         english_text = user_text
         
-    # Get all 4 scores
+    # 💡 FIX: Beautiful Translation Box (Shows only if text was translated)
+    if english_text.lower().strip() != user_text.lower().strip():
+        st.markdown(f"""
+        <div style="background-color: #2b2b36; border-left: 4px solid #007BFF; padding: 12px 20px; border-radius: 8px; margin-top: -15px; margin-bottom: 25px;">
+            <span style="color: #a0a0a5; font-size: 13px; text-transform: uppercase; font-weight: 600; letter-spacing: 1px;">🌍 Translated to English for Analysis:</span><br>
+            <span style="color: #ffffff; font-size: 16px; font-weight: 500;">"{english_text}"</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # --- AI PREDICTION ---
     results = analyzer(english_text)[0]
     
-    # Map raw labels (LABEL_0, etc.) to readable format and extract percentages
     scores = {"Positive": 0, "Negative": 0, "Neutral": 0, "Mixed": 0}
     label_mapping = {"LABEL_0": "Negative", "LABEL_1": "Neutral", "LABEL_2": "Positive", "LABEL_3": "Mixed"}
     
@@ -101,30 +93,33 @@ if user_text:
         mapped_name = label_mapping.get(res['label'], res['label'])
         scores[mapped_name] = round(res['score'] * 100)
     
-    # Find the winning sentiment for the Gauge Chart
     top_sentiment = max(scores, key=scores.get)
     top_score = scores[top_sentiment]
     
     gauge_color = "#28a745" if top_sentiment == "Positive" else "#dc3545" if top_sentiment == "Negative" else "#fd7e14" if top_sentiment == "Neutral" else "#6f42c1"
 
     # --- ROW 1: METRICS & GAUGE CHART ---
-    st.markdown("<br>", unsafe_allow_html=True)
     row1_col1, row1_col2 = st.columns([1.5, 1])
     
     with row1_col1:
         st.markdown('<p class="section-title">Overall Sentiment</p>', unsafe_allow_html=True)
         st.markdown('<p class="section-subtitle">Overview of sentiment distribution across 4 classes</p>', unsafe_allow_html=True)
         
-        # 4 Metric Cards in a row
+        # 💡 FIX: Inline CSS guarantees text visibility regardless of Dark Mode
         c1, c2, c3, c4 = st.columns(4)
-        with c1:
-            st.markdown(f'''<div class="metric-card"><h4 class="text-pos">🤩 Positive</h4><h1>{scores["Positive"]}%</h1></div>''', unsafe_allow_html=True)
-        with c2:
-            st.markdown(f'''<div class="metric-card"><h4 class="text-neg">😡 Negative</h4><h1>{scores["Negative"]}%</h1></div>''', unsafe_allow_html=True)
-        with c3:
-            st.markdown(f'''<div class="metric-card"><h4 class="text-neu">😐 Neutral</h4><h1>{scores["Neutral"]}%</h1></div>''', unsafe_allow_html=True)
-        with c4:
-            st.markdown(f'''<div class="metric-card"><h4 class="text-mix">🤔 Mixed</h4><h1>{scores["Mixed"]}%</h1></div>''', unsafe_allow_html=True)
+        
+        def draw_card(title, emoji, percentage, color):
+            return f"""
+            <div style="background-color: #ffffff; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+                <h4 style="margin: 0; font-size: 16px; font-weight: 900; color: {color};">{emoji} {title}</h4>
+                <h1 style="margin: 10px 0 0 0; font-size: 32px; color: #000000; font-weight: 900;">{percentage}%</h1>
+            </div>
+            """
+            
+        with c1: st.markdown(draw_card("Positive", "🤩", scores["Positive"], "#28a745"), unsafe_allow_html=True)
+        with c2: st.markdown(draw_card("Negative", "😡", scores["Negative"], "#dc3545"), unsafe_allow_html=True)
+        with c3: st.markdown(draw_card("Neutral", "😐", scores["Neutral"], "#fd7e14"), unsafe_allow_html=True)
+        with c4: st.markdown(draw_card("Mixed", "🤔", scores["Mixed"], "#6f42c1"), unsafe_allow_html=True)
             
     with row1_col2:
         st.markdown('<p class="section-title">Confidence Score</p>', unsafe_allow_html=True)
@@ -152,7 +147,6 @@ if user_text:
         st.markdown('<p class="section-title">Sentiment Over Time</p>', unsafe_allow_html=True)
         st.markdown('<p class="section-subtitle">Simulated trend analysis based on current input</p>', unsafe_allow_html=True)
         
-        # Generating a simulated trend graph that leads up to the current scores
         x_vals = ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Current']
         fig_line = go.Figure()
         fig_line.add_trace(go.Scatter(x=x_vals, y=[random.randint(20,80), random.randint(20,80), random.randint(20,80), random.randint(20,80), scores["Positive"]], name="Pos", line=dict(color="#28a745")))
@@ -172,10 +166,9 @@ if user_text:
         st.markdown('<p class="section-title">Word Cloud</p>', unsafe_allow_html=True)
         st.markdown('<p class="section-subtitle">Most frequent words in analyzed text</p>', unsafe_allow_html=True)
         
-        # Generate Word Cloud
         wordcloud = WordCloud(width=600, height=300, background_color='white', colormap='Set2').generate(english_text)
         fig_wc, ax = plt.subplots(figsize=(6, 3))
         ax.imshow(wordcloud, interpolation='bilinear')
         ax.axis("off")
-        fig_wc.patch.set_facecolor('white') # Keep background of image white like screenshot
+        fig_wc.patch.set_facecolor('white')
         st.pyplot(fig_wc)
