@@ -36,7 +36,6 @@ st.markdown("""
 # ==========================================
 # 2. SESSION STATE (Live Memory Setup)
 # ==========================================
-# Ye app ki memory hai. Jab tak tab open hai, history save rahegi.
 if 'history' not in st.session_state:
     st.session_state.history = []
 if 'review_count' not in st.session_state:
@@ -67,9 +66,10 @@ with col_header2:
 user_text = st.text_input("", placeholder="Paste customer review here and hit Enter...")
 
 # ==========================================
-# 5. DATA PROCESSING & SAVING TO HISTORY
+# 5. DATA PROCESSING (Removing 'Mixed')
 # ==========================================
-scores = {"Positive": 0, "Negative": 0, "Neutral": 0, "Mixed": 0}
+# Default states for 3 Classes only
+scores = {"Positive": 0, "Negative": 0, "Neutral": 0}
 top_sentiment = "Awaiting Input"
 top_score = 0
 gauge_color = "#555555"
@@ -98,15 +98,26 @@ if user_text.strip():
     results = analyzer(english_text)[0]
     label_mapping = {"LABEL_0": "Negative", "LABEL_1": "Neutral", "LABEL_2": "Positive", "LABEL_3": "Mixed"}
     
+    raw_scores = {"Positive": 0.0, "Negative": 0.0, "Neutral": 0.0}
+    
+    # Get scores only for the 3 main classes
     for res in results:
         mapped_name = label_mapping.get(res['label'], res['label'])
-        scores[mapped_name] = round(res['score'] * 100)
+        if mapped_name in raw_scores:
+            raw_scores[mapped_name] = res['score']
+            
+    # RE-NORMALIZE SCORES (Make sure the remaining 3 add up to exactly 100%)
+    total_valid_score = sum(raw_scores.values())
+    if total_valid_score > 0:
+        scores["Positive"] = round((raw_scores["Positive"] / total_valid_score) * 100)
+        scores["Negative"] = round((raw_scores["Negative"] / total_valid_score) * 100)
+        scores["Neutral"] = round((raw_scores["Neutral"] / total_valid_score) * 100)
     
     top_sentiment = max(scores, key=scores.get)
     top_score = scores[top_sentiment]
-    gauge_color = "#28a745" if top_sentiment == "Positive" else "#dc3545" if top_sentiment == "Negative" else "#fd7e14" if top_sentiment == "Neutral" else "#6f42c1"
+    gauge_color = "#28a745" if top_sentiment == "Positive" else "#dc3545" if top_sentiment == "Negative" else "#fd7e14"
 
-    # Save to Live History (Only if it's a new review)
+    # Save to Live History (Removed Mixed column)
     if not st.session_state.history or st.session_state.history[-1]['Original Text'] != user_text:
         st.session_state.review_count += 1
         st.session_state.history.append({
@@ -115,12 +126,11 @@ if user_text.strip():
             "Result": top_sentiment,
             "Positive (%)": scores["Positive"],
             "Negative (%)": scores["Negative"],
-            "Neutral (%)": scores["Neutral"],
-            "Mixed (%)": scores["Mixed"]
+            "Neutral (%)": scores["Neutral"]
         })
 
 # ==========================================
-# 6. DASHBOARD UI (Cards & Gauge)
+# 6. DASHBOARD UI (Now with 3 Cards)
 # ==========================================
 row1_col1, row1_col2 = st.columns([1.5, 1])
 
@@ -128,7 +138,8 @@ with row1_col1:
     st.markdown('<p class="section-title">Latest Review Sentiment</p>', unsafe_allow_html=True)
     st.markdown('<p class="section-subtitle">Real-time analysis of the current input</p>', unsafe_allow_html=True)
     
-    c1, c2, c3, c4 = st.columns(4)
+    # Changed from 4 columns to 3
+    c1, c2, c3 = st.columns(3)
     def draw_card(title, emoji, percentage, color):
         return f"""
         <div style="background-color: #ffffff; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
@@ -140,7 +151,6 @@ with row1_col1:
     with c1: st.markdown(draw_card("Positive", "🤩", scores["Positive"], "#28a745"), unsafe_allow_html=True)
     with c2: st.markdown(draw_card("Negative", "😡", scores["Negative"], "#dc3545"), unsafe_allow_html=True)
     with c3: st.markdown(draw_card("Neutral", "😐", scores["Neutral"], "#fd7e14"), unsafe_allow_html=True)
-    with c4: st.markdown(draw_card("Mixed", "🤔", scores["Mixed"], "#6f42c1"), unsafe_allow_html=True)
         
 with row1_col2:
     st.markdown('<p class="section-title">Confidence Score</p>', unsafe_allow_html=True)
@@ -182,7 +192,6 @@ with row2_col1:
         fig_line.add_trace(go.Scatter(x=x_vals, y=y_neg, mode='lines+markers', name="Neg", line=dict(color="#dc3545", width=3), marker=dict(size=8)))
         fig_line.add_trace(go.Scatter(x=x_vals, y=y_neu, mode='lines+markers', name="Neu", line=dict(color="#fd7e14", width=3), marker=dict(size=8)))
     else:
-        # Empty placeholder if no history
         fig_line.add_trace(go.Scatter(x=["No Data"], y=[0], mode='lines', line=dict(color="#555")))
 
     fig_line.update_layout(
@@ -213,12 +222,8 @@ st.markdown('<p class="section-title">📝 Session Log (Live History)</p>', unsa
 st.markdown('<p class="section-subtitle">List of all reviews analyzed since you opened the page.</p>', unsafe_allow_html=True)
 
 if len(st.session_state.history) > 0:
-    # Convert list of dictionaries to Pandas DataFrame for a beautiful table
     df_history = pd.DataFrame(st.session_state.history)
-    # Reverse it so newest review is at the top
     df_history = df_history.iloc[::-1].reset_index(drop=True)
-    
-    # Display dataframe in Streamlit
     st.dataframe(df_history, use_container_width=True, hide_index=True)
 else:
     st.info("No reviews analyzed yet. Start typing above to build your history!")
