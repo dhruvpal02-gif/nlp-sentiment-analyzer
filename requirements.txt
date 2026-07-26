@@ -5,3 +5,4 @@ deep-translator
 plotly
 wordcloud
 matplotlib
+pandas
