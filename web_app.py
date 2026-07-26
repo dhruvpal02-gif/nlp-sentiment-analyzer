@@ -42,12 +42,12 @@ if 'review_count' not in st.session_state:
     st.session_state.review_count = 0
 
 # ==========================================
-# 3. LOAD AI MODEL (The Super-Accurate RoBERTa)
+# 3. LOAD AI MODEL (Your Custom Model)
 # ==========================================
 @st.cache_resource
 def load_model():
-    # 💡 CHANGED: World's best open-source 3-class sentiment model
-    MODEL_NAME = "cardiffnlp/twitter-roberta-base-sentiment-latest" 
+    # 💡 CHANGED: Aapka apna custom Hugging Face model wapas laga diya hai
+    MODEL_NAME = "dhruvpal02/ultimate-sentiment-ai" 
     return pipeline("text-classification", model=MODEL_NAME, tokenizer=MODEL_NAME, top_k=None)
 
 with st.spinner("Initializing Enterprise AI Engines..."):
@@ -59,7 +59,7 @@ with st.spinner("Initializing Enterprise AI Engines..."):
 col_header1, col_header2 = st.columns([3, 1])
 with col_header1:
     st.markdown('<p class="dashboard-title">Sentiment Analysis Dashboard</p>', unsafe_allow_html=True)
-    st.markdown('<p class="dashboard-subtitle">Live Tracking: Powered by Enterprise RoBERTa AI Model.</p>', unsafe_allow_html=True)
+    st.markdown('<p class="dashboard-subtitle">Live Tracking: Powered by Custom Sentiment AI Model.</p>', unsafe_allow_html=True)
 with col_header2:
     today_date = datetime.datetime.now().strftime("%b %d, %Y")
     st.markdown(f'<div class="date-badge">🗓️ Session Date: {today_date}</div>', unsafe_allow_html=True)
@@ -97,7 +97,7 @@ if user_text.strip():
     # Run AI Prediction
     results = analyzer(english_text)[0]
     
-    # Robust mapping for the new model
+    # Robust mapping
     label_mapping = {
         "LABEL_0": "Negative", "negative": "Negative",
         "LABEL_1": "Neutral",  "neutral": "Neutral",
